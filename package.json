@@ -1,0 +1,24 @@
+{
+  "name": "minutes-iterations",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5310 --host",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --port 5310",
+    "bundle": "npm run build && node scripts/bundle-single-file.mjs dist sixteen-versions-of-one-banner.html",
+    "deploy": "vercel --prod --yes"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}

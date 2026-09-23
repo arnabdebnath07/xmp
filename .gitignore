@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.vercel/
+.DS_Store
+*.local
+
+# the single-file build output — regenerate with `npm run bundle`
+sixteen-versions-of-one-banner.html
