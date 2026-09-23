@@ -55,6 +55,8 @@ button { font-family: inherit; cursor: pointer; }
   /* perspective comes from App (radius x 6), so the maths lives in one place */
   perspective-origin: 50% 50%;
   transform-style: preserve-3d;
+  transform: translateY(var(--lift, 0px));
+  transition: transform .62s cubic-bezier(.33, 0, .2, 1);
 }
 
 /* pushed back by its own radius so the front slot lands at z 0.
@@ -71,12 +73,14 @@ button { font-family: inherit; cursor: pointer; }
 .device-frame {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: calc(50% + var(--lift, 0px));
   z-index: 30;
   pointer-events: none;
   display: block;
-  /* same curve and duration as the slot it sits on, so they grow as one */
-  transition: transform .62s cubic-bezier(.33, 0, .2, 1);
+  /* same curve and duration as the slot it sits on, so they move as one */
+  transition:
+    transform .62s cubic-bezier(.33, 0, .2, 1),
+    top .62s cubic-bezier(.33, 0, .2, 1);
 }
 .track.is-ready { opacity: 1; }
 
@@ -146,7 +150,6 @@ button { font-family: inherit; cursor: pointer; }
 .hero {
   position: absolute;
   inset: 0;
-  bottom: 52px;
   display: flex;
   align-items: center;
   justify-content: center;

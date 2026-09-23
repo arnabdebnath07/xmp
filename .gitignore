@@ -6,3 +6,4 @@ dist/
 
 # the single-file build output — regenerate with `npm run bundle`
 sixteen-versions-of-one-banner.html
+tsconfig.tsbuildinfo

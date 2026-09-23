@@ -30,6 +30,12 @@ const HERO_W = 372;
  * its own to give itself away.
  */
 const GROW = HERO_W / PHONE_W;
+/**
+ * The hero reserves this much at the bottom for the closing line, which lifts it
+ * off the stage's centre. The ring and the bezel have to take the same lift or
+ * the slot cross-fading underneath sits low and shows as a second phone.
+ */
+const HERO_BAND = 52;
 /** their ring puts 14 slots on the circle; we borrow the step, not the count */
 const CYL_STEP = 360 / 14;
 
@@ -277,7 +283,12 @@ export default function App() {
     <div className={`viewport${done ? ' is-done' : ''}`} onWheel={onWheel}>
       <div
         className={`stage${done ? ' is-done' : ''}`}
-        style={{ width: STAGE_W, height: STAGE_H, transform: `translate(-50%, -50%) scale(${scale})` }}
+        style={{
+          width: STAGE_W,
+          height: STAGE_H,
+          transform: `translate(-50%, -50%) scale(${scale})`,
+          ['--lift' as string]: `${done ? -HERO_BAND / 2 : 0}px`,
+        }}
       >
         <div
           className={`track${ready ? ' is-ready' : ''}${done ? ' is-settling' : ''}`}
@@ -363,7 +374,7 @@ export default function App() {
         {/* ── the one that shipped ───────────────────────── */}
         {phase === 'final' && (
           <>
-            <div className="hero">
+            <div className="hero" style={{ bottom: HERO_BAND }}>
               <Phone width={HERO_W} className="phone-hero" src={null}>
                 {finalScreen}
               </Phone>
