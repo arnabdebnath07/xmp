@@ -5,10 +5,11 @@
   --red: #D12B28;
   --red-soft: #fdecec;
   /* the settle into the final cut: one duration, one ease-in-out curve */
-  --settle: .4s;
+  --settle: .36s;
   --ease-io: cubic-bezier(.65, 0, .35, 1);
-  /* the circle: a softer sine in-out, so its edge glides rather than snaps */
-  --ease-wipe: cubic-bezier(.37, 0, .63, 1);
+  /* the circle: a quick, soft start and a long glide in, so it moves fast
+     without its edge ever snapping */
+  --ease-wipe: cubic-bezier(.4, 0, .15, 1);
 }
 
 * { box-sizing: border-box; }
@@ -101,31 +102,45 @@ button { font-family: inherit; cursor: pointer; }
 /* under the bezel, over the slot */
 .screen-wipe { z-index: 20; }
 .screen-wipe .phone-screen { background: transparent; }
-/* 140% of circle()'s reference length reaches the top corners of a phone-tall
-   screen from its bottom centre */
+/* Both circles are real round boxes moved by transform, never an animated
+   clip-path: a clip-path repaints every frame on the main thread, and the finale
+   shares that thread with the whole ring clearing, so it stutters. Sizes are in
+   % of the screen's width; the screen is 978:2000, so its height is ~2.05x that. */
 .wipe-fill,
 .reveal-fill {
   position: absolute;
-  inset: 0;
+  left: 50%;
+  aspect-ratio: 1;
+  border-radius: 50%;
   background: var(--red);
-  clip-path: circle(0% at 50% 100%);
-  transition: clip-path .3s var(--ease-io);
+  will-change: transform;
+}
+/* grows from the bottom centre; at full size its radius (2.2x the width) just
+   clears the top corners */
+.wipe-fill {
+  top: 100%;
+  width: 440%;
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform .26s var(--ease-io);
 }
 .stage.is-done .wipe-fill {
-  clip-path: circle(140% at 50% 100%);
-  transition: clip-path var(--wipe-ms) var(--ease-wipe) var(--wipe-delay);
+  transform: translate(-50%, -50%) scale(1);
+  transition: transform var(--wipe-ms) var(--ease-wipe) var(--wipe-delay);
 }
 /* the hero arrives already flooded — red over red, so its fade-in can't show.
    This one never changes size, it only travels: a circle just big enough to
-   cover the screen (radius = half the diagonal = 71% of circle()'s reference)
-   slides from the centre up past the top edge, so its round lower edge sweeps
-   upward and the cut rises in behind it. */
+   cover the screen (diameter = the diagonal, ~2.3x the width) slides from the
+   centre up past the top edge, so its round lower edge sweeps upward and the
+   cut rises in behind it. */
 .reveal-fill {
+  top: 50%;
+  width: 232%;
+  transform: translate(-50%, -50%);
   animation: reveal var(--reveal-ms) var(--ease-wipe) var(--reveal-delay) both;
 }
 @keyframes reveal {
-  from { clip-path: circle(71% at 50% 50%); }
-  to   { clip-path: circle(71% at 50% -60%); }
+  from { transform: translate(-50%, -50%); }
+  to   { transform: translate(-50%, -150%); }
 }
 
 .slide {

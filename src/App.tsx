@@ -87,13 +87,13 @@ function atAngle(stops: [number, number][], deg: number) {
 /** the run is hand-driven: this much wheel travel moves one build */
 const WHEEL_STEP = 80;
 const WHEEL_LOCK = 130;  // ms of quiet between steps, so momentum doesn't overshoot
-const SETTLE_MS = 460;   // must match --settle: the field clears, the screen floods red, then the cut arrives
+const SETTLE_MS = 360;   // must match --settle: the field clears, the screen floods red, then the cut arrives
 /** inside the frame a red circle rises from the bottom edge and floods the screen */
 const WIPE_DELAY = 0;
-const WIPE_MS = 440;
+const WIPE_MS = 340;
 /** once the cut is underneath, the red carries on up and leaves through the top */
-const REVEAL_DELAY = 20;
-const REVEAL_MS = 480;
+const REVEAL_DELAY = 0;
+const REVEAL_MS = 380;
 const CLEAR_STAGGER = 30; // nearest neighbours leave first, the far ones follow
 
 type Phase = 'run' | 'settle' | 'final';
