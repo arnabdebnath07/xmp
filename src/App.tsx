@@ -119,6 +119,33 @@ function place(offset: number) {
   };
 }
 
+/**
+ * The build number rolls rather than cuts: the old label slides up and fades out
+ * as the new one rises in behind it. Stepping back runs the roll the other way.
+ */
+function Caption({ n, out }: { n: number; out: boolean }) {
+  const [roll, setRoll] = useState({ cur: n, prev: null as number | null, dir: 1, id: 0 });
+  // derived during render, so the old label is still there on the frame the new one arrives
+  if (n !== roll.cur) {
+    setRoll((r) => ({ cur: n, prev: r.cur, dir: n > r.cur ? 1 : -1, id: r.id + 1 }));
+  }
+  return (
+    <div
+      className={`caption${out ? ' is-out' : ''}`}
+      style={{ ['--dir' as string]: roll.dir }}
+    >
+      {roll.prev !== null && (
+        <span key={`out-${roll.id}`} className="caption-line is-leaving" aria-hidden>
+          Iteration {roll.prev + 1}
+        </span>
+      )}
+      <span key={`in-${roll.id}`} className="caption-line is-entering">
+        Iteration {roll.cur + 1}
+      </span>
+    </div>
+  );
+}
+
 export default function App() {
   const [scale, setScale] = useState(1);
   // the ring's position is a running count, never wrapped: stepping past either
@@ -421,9 +448,7 @@ export default function App() {
         />
 
         {phase !== 'final' && (
-          <div className={`caption${done ? ' is-out' : ''}`} key={cursor}>
-            Iteration {cursor + 1}
-          </div>
+          <Caption n={cursor} out={done} />
         )}
 
         {/* ── the one that shipped ───────────────────────── */}

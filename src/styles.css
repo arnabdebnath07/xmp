@@ -254,9 +254,24 @@ button { font-family: inherit; cursor: pointer; }
   letter-spacing: -0.016em;
   color: #515154;
   pointer-events: none;
-  animation: riseIn .2s ease both;
 }
 .caption.is-out { opacity: 0; transition: opacity .28s ease; }
+.caption-line { display: block; }
+/* the outgoing label sits over the incoming one, so the two cross in one slot */
+.caption-line.is-leaving {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  animation: captionOut .3s cubic-bezier(.4, 0, .15, 1) both;
+}
+.caption-line.is-entering { animation: captionIn .36s cubic-bezier(.4, 0, .15, 1) both; }
+@keyframes captionIn {
+  from { opacity: 0; transform: translateY(calc(var(--dir) * 18px)); }
+}
+@keyframes captionOut {
+  to { opacity: 0; transform: translateY(calc(var(--dir) * -18px)); }
+}
 
 .closing {
   position: absolute;
