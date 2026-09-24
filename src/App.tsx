@@ -8,19 +8,20 @@ const STAGE_W = 1600;
 const STAGE_H = 900;
 
 /**
- * The unboxed hero carousel's geometry, ported straight over: radius is 2.6x the
- * slot width, camera distance is 6x the radius, so the slot facing the camera is
- * magnified by P / (P - R) = 1.2. SLIDE_W is chosen so that magnified front slot
- * renders at ~292px here.
+ * The ring: radius is 2.6x the slot width. The camera sits close — 3x the radius
+ * — so the slots round the side visibly turn away (near edge taller than the far
+ * one) and read as faces of a drum, not flat cards sliding sideways. That close
+ * camera magnifies the front slot by P / (P - R) = 1.5, so the slot width is
+ * derived backwards from the size the front phone should land at.
  */
-const SLIDE_W = 272;
 const RADIUS_TO_WIDTH = 2.6;
-const PERSPECTIVE_TO_RADIUS = 6;
-const CYL_R = SLIDE_W * RADIUS_TO_WIDTH;
-const PERSPECTIVE = CYL_R * PERSPECTIVE_TO_RADIUS;
+const PERSPECTIVE_TO_RADIUS = 3;
 const FRONT_MAG = PERSPECTIVE_TO_RADIUS / (PERSPECTIVE_TO_RADIUS - 1);
 /** what the front slot actually measures once perspective has magnified it */
-const PHONE_W = SLIDE_W * FRONT_MAG;
+const PHONE_W = 326;
+const SLIDE_W = PHONE_W / FRONT_MAG;
+const CYL_R = SLIDE_W * RADIUS_TO_WIDTH;
+const PERSPECTIVE = CYL_R * PERSPECTIVE_TO_RADIUS;
 /** the video takes over from the lit phone and pushes in past it */
 const HERO_W = 372;
 /**
@@ -59,8 +60,11 @@ const RECEDE_STOPS: [number, number][] = [
   [90, 0.6],
 ];
 /** every visible slot stays solid; the fade is only the exit ramp */
-const FADE_START_DEG = 60;
-const FADE_END_DEG = 71;
+const FADE_START_DEG = 52;
+/** far enough out that the third slot (at ~77°) is still a faint sliver on the
+ *  rim: with nothing out there, a new edge slot would fade in on the exact spot
+ *  the old one left, and the edge of the ring would read as standing still */
+const FADE_END_DEG = 96;
 /** pushed off their table: the neighbours blur from the first step out, so the
  *  eye has nowhere to go but the middle */
 const BLUR_STOPS: [number, number][] = [
@@ -83,8 +87,14 @@ function atAngle(stops: [number, number][], deg: number) {
 /** the run is hand-driven: this much wheel travel moves one build */
 const WHEEL_STEP = 80;
 const WHEEL_LOCK = 130;  // ms of quiet between steps, so momentum doesn't overshoot
-const SETTLE_MS = 620;   // the field clears and the one that shipped is left standing
-const CLEAR_STAGGER = 55; // nearest neighbours leave first, the far ones follow
+const SETTLE_MS = 460;   // must match --settle: the field clears, the screen floods red, then the cut arrives
+/** inside the frame a red circle rises from the bottom edge and floods the screen */
+const WIPE_DELAY = 0;
+const WIPE_MS = 440;
+/** once the cut is underneath, the red carries on up and leaves through the top */
+const REVEAL_DELAY = 20;
+const REVEAL_MS = 480;
+const CLEAR_STAGGER = 30; // nearest neighbours leave first, the far ones follow
 
 type Phase = 'run' | 'settle' | 'final';
 
@@ -111,7 +121,9 @@ function place(offset: number) {
 
 export default function App() {
   const [scale, setScale] = useState(1);
-  const [cursor, setCursor] = useState(0);
+  // the ring's position is a running count, never wrapped: stepping past either
+  // end just keeps turning the same way, so the ring reads as endless
+  const [pos, setPos] = useState(0);
   const [phase, setPhase] = useState<Phase>('run');
   const [ready, setReady] = useState(false);
   const timers = useRef<number[]>([]);
@@ -123,13 +135,36 @@ export default function App() {
   // The phase deliberately gets no such ref: it only moves on settle, and a ref
   // for it can fall out of step with the real phase — which strands the deck
   // with the arrows doing nothing while F still works.
-  const clips = useRef(new Map<string, HTMLVideoElement | null>());
+  const clips = useRef(new Map<number, HTMLVideoElement | null>());
   const at = useRef(0);
-  at.current = cursor;
+  at.current = pos;
+  /** each slot's offset last frame, to spot the one that wrapped round the back */
+  const prevOffsets = useRef(new Map<number, number>());
 
   const total = shots.length;
   const last = total - 1;
   const done = phase !== 'run';
+  /**
+   * The builds repeat round the ring until it is a full drum, so a slot only ever
+   * wraps where nobody can see it — round the back. With just the builds on it,
+   * the far-left one would have to jump straight across to the far right.
+   */
+  const slots = Math.ceil(360 / CYL_STEP / total) * total;
+  const mod = (n: number, m: number) => ((n % m) + m) % m;
+  /** the shortest way round, as a signed count, on a loop of m */
+  const wrapOn = (n: number, m: number) => {
+    const r = mod(n, m);
+    return r >= m / 2 ? r - m : r;
+  };
+  const wrap = (n: number) => wrapOn(n, total);
+  const cursor = mod(pos, total);
+  const litSlot = mod(pos, slots);
+  /** the position nearest `p` that lights build `i` */
+  const toward = (p: number, i: number) => p + wrap(i - p);
+  const moveTo = (p: number) => {
+    at.current = p;
+    setPos(p);
+  };
 
   const clearTimers = () => {
     timers.current.forEach(clearTimeout);
@@ -156,27 +191,31 @@ export default function App() {
   // ── the track collapses onto the one that shipped ────────
   const settle = useCallback(() => {
     clearTimers();
-    at.current = last;
-    setCursor(last);
+    moveTo(toward(at.current, last));
     setPhase('settle');
     after(SETTLE_MS, () => setPhase('final'));
   }, [last]);
 
   useEffect(() => clearTimers, []);
 
+  useLayoutEffect(() => {
+    for (let k = 0; k < slots; k++) prevOffsets.current.set(k, wrapOn(k - pos, slots));
+  });
+
   const restart = useCallback(() => {
     clearTimers();
-    at.current = 0;
+    moveTo(toward(at.current, 0));
     setPhase('run');
-    setCursor(0);
   }, []);
 
+  /** a clicked slot turns the ring by however far round it sits */
   const goto = useCallback(
-    (next: number) => {
+    (offset: number) => {
       if (done) return;
-      const c = Math.max(0, Math.min(last, next));
-      at.current = c;
-      setCursor(c);
+      // the copies either side of the run don't lead past its ends
+      const next = mod(at.current, total) + offset;
+      if (next < 0 || next > last) return;
+      moveTo(at.current + offset);
     },
     [done, last],
   );
@@ -189,22 +228,16 @@ export default function App() {
         // scrolling back out of the video drops you on the build it came from
         if (dir < 0) {
           clearTimers();
-          at.current = last;
           setPhase('run');
-          setCursor(last);
         }
         return;
       }
-      if (dir > 0) {
-        if (at.current >= last) settle();
-        else {
-          at.current += 1;
-          setCursor(at.current);
-        }
-      } else {
-        at.current = Math.max(0, at.current - 1);
-        setCursor(at.current);
-      }
+      // the ring looks endless, but the deck still runs 1 → last: back stops at
+      // the first build, and forward off the last one is the finale
+      const here = mod(at.current, total);
+      if (dir > 0 && here === last) settle();
+      else if (dir < 0 && here === 0) return;
+      else moveTo(at.current + dir);
     },
     [phase, last, settle],
   );
@@ -252,10 +285,9 @@ export default function App() {
 
   // the lit build plays from the top; everything else sits paused
   useEffect(() => {
-    const id = shots[cursor]?.id;
-    const lit = clips.current.get(id);
+    const lit = clips.current.get(litSlot);
     clips.current.forEach((v, key) => {
-      if (v && key !== id) v.pause();
+      if (v && key !== litSlot) v.pause();
     });
     if (!lit || done) return;
     // play() rejects if the clip isn't buffered yet, and nothing would retry —
@@ -267,10 +299,13 @@ export default function App() {
     go();
     lit.addEventListener('canplay', go, { once: true });
     return () => lit.removeEventListener('canplay', go);
-  }, [cursor, done]);
+  }, [litSlot, done]);
 
   const finalScreen = finalVideoUrl ? (
-    <video src={finalVideoUrl} poster={finalPosterUrl ?? undefined} autoPlay muted loop playsInline />
+    <>
+      <video src={finalVideoUrl} poster={finalPosterUrl ?? undefined} autoPlay muted loop playsInline />
+      <span className="reveal-fill" />
+    </>
   ) : (
     <span className="slot">
       <span className="slot-mark" />
@@ -288,6 +323,10 @@ export default function App() {
           height: STAGE_H,
           transform: `translate(-50%, -50%) scale(${scale})`,
           ['--lift' as string]: `${done ? -HERO_BAND / 2 : 0}px`,
+          ['--wipe-ms' as string]: `${WIPE_MS}ms`,
+          ['--wipe-delay' as string]: `${WIPE_DELAY}ms`,
+          ['--reveal-ms' as string]: `${REVEAL_MS}ms`,
+          ['--reveal-delay' as string]: `${REVEAL_DELAY}ms`,
         }}
       >
         <div
@@ -295,22 +334,25 @@ export default function App() {
           style={{ perspective: `${PERSPECTIVE}px` }}
         >
           <div className="cylinder">
-          {shots.map((s, i) => {
-            // the track wraps, so there is always something either side of the lit one
-            let o = i - cursor;
-            if (o > total / 2) o -= total;
-            if (o < -total / 2) o += total;
+          {Array.from({ length: slots }, (_, k) => {
+            const s = shots[k % total];
+            const o = wrapOn(k - pos, slots);
+            const lit = o === 0;
+            // the slot that just went round the back jumps from one far side to
+            // the other — it cuts there instead of sweeping across the front
+            const prev = prevOffsets.current.get(k);
+            const wrapped = prev !== undefined && Math.abs(o - prev) > slots / 2;
             const p = place(o);
             // on the way out the field sweeps further round the cylinder, nearest
             // first, and the one that shipped is left standing exactly where it was
-            const leaving = done && i !== cursor;
+            const leaving = done && !lit;
             const angle = leaving ? p.angle * 1.5 : p.angle;
-            const grown = done && i === cursor;
+            const grown = done && lit;
             const opacity = leaving ? 0 : p.opacity;
             return (
               <button
-                key={s.id}
-                className={`slide${i === cursor ? ' is-lit' : ''}`}
+                key={k}
+                className={`slide${lit ? ' is-lit' : ''}`}
                 style={{
                   transform:
                     `translate(-50%, -50%) rotateY(${angle}deg) translateZ(${CYL_R}px) ` +
@@ -318,17 +360,18 @@ export default function App() {
                   opacity,
                   filter: `blur(${p.blur}px)`,
                   zIndex: 40 - Math.abs(o),
+                  transition: wrapped ? 'none' : undefined,
                   transitionDelay: leaving ? `${(Math.abs(o) - 1) * CLEAR_STAGGER}ms` : undefined,
                   pointerEvents: p.opacity < 0.2 || done ? 'none' : 'auto',
                 }}
-                onClick={() => goto(i)}
+                onClick={() => goto(o)}
                 title={`${s.id} — ${s.title}`}
               >
                 {stepVideoUrls[s.id] ? (
                   <Phone width={SLIDE_W} src={null} frame={false}>
                     <video
                       ref={(el) => {
-                        clips.current.set(s.id, el);
+                        clips.current.set(k, el);
                       }}
                       src={stepVideoUrls[s.id]}
                       muted
@@ -349,6 +392,18 @@ export default function App() {
             );
           })}
           </div>
+        </div>
+
+        {/* The red flood: a bare screen the size of the front slot, riding the same
+            grow and lift as the bezel, so the circle is clipped to the real cutout.
+            The hero's video then fades in over solid red instead of over a build. */}
+        <div
+          className="screen-wipe"
+          style={{ transform: `translate(-50%, -50%) scale(${done ? GROW : 1})` }}
+        >
+          <Phone width={PHONE_W} src={null} frame={false}>
+            <span className="wipe-fill" />
+          </Phone>
         </div>
 
         {/* One bezel, over the front of the ring — the slots are bare screens. It

@@ -4,6 +4,11 @@
   --ink: #1d1d1f;
   --red: #D12B28;
   --red-soft: #fdecec;
+  /* the settle into the final cut: one duration, one ease-in-out curve */
+  --settle: .4s;
+  --ease-io: cubic-bezier(.65, 0, .35, 1);
+  /* the circle: a softer sine in-out, so its edge glides rather than snaps */
+  --ease-wipe: cubic-bezier(.37, 0, .63, 1);
 }
 
 * { box-sizing: border-box; }
@@ -30,7 +35,7 @@ button { font-family: inherit; cursor: pointer; }
   inset: 0;
   background: var(--bg);
   overflow: hidden;
-  transition: background-color .62s cubic-bezier(.4, 0, .2, 1);
+  transition: background-color var(--settle) var(--ease-io);
 }
 .viewport.is-done { background: var(--red); }
 
@@ -41,7 +46,7 @@ button { font-family: inherit; cursor: pointer; }
   transform-origin: center center;
   background: var(--bg);
   overflow: hidden;
-  transition: background-color .62s cubic-bezier(.4, 0, .2, 1);
+  transition: background-color var(--settle) var(--ease-io);
 }
 .stage.is-done { background: var(--red); }
 
@@ -56,7 +61,7 @@ button { font-family: inherit; cursor: pointer; }
   perspective-origin: 50% 50%;
   transform-style: preserve-3d;
   transform: translateY(var(--lift, 0px));
-  transition: transform .62s cubic-bezier(.33, 0, .2, 1);
+  transition: transform var(--settle) var(--ease-io);
 }
 
 /* pushed back by its own radius so the front slot lands at z 0.
@@ -70,7 +75,8 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 /* the one bezel, sized to the front slot after perspective magnifies it */
-.device-frame {
+.device-frame,
+.screen-wipe {
   position: absolute;
   left: 50%;
   top: calc(50% + var(--lift, 0px));
@@ -79,10 +85,48 @@ button { font-family: inherit; cursor: pointer; }
   display: block;
   /* same curve and duration as the slot it sits on, so they move as one */
   transition:
-    transform .62s cubic-bezier(.33, 0, .2, 1),
-    top .62s cubic-bezier(.33, 0, .2, 1);
+    transform var(--settle) var(--ease-io),
+    top var(--settle) var(--ease-io);
+}
+/* stepping back out of the final, the slot shrinks on the run's curve, not the
+   settle's — the bezel has to take the same one or the screen lands first */
+.stage:not(.is-done) .device-frame,
+.stage:not(.is-done) .screen-wipe {
+  transition:
+    transform .34s cubic-bezier(.22, .9, .26, 1),
+    top var(--settle) var(--ease-io);
 }
 .track.is-ready { opacity: 1; }
+
+/* under the bezel, over the slot */
+.screen-wipe { z-index: 20; }
+.screen-wipe .phone-screen { background: transparent; }
+/* 140% of circle()'s reference length reaches the top corners of a phone-tall
+   screen from its bottom centre */
+.wipe-fill,
+.reveal-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--red);
+  clip-path: circle(0% at 50% 100%);
+  transition: clip-path .3s var(--ease-io);
+}
+.stage.is-done .wipe-fill {
+  clip-path: circle(140% at 50% 100%);
+  transition: clip-path var(--wipe-ms) var(--ease-wipe) var(--wipe-delay);
+}
+/* the hero arrives already flooded — red over red, so its fade-in can't show.
+   This one never changes size, it only travels: a circle just big enough to
+   cover the screen (radius = half the diagonal = 71% of circle()'s reference)
+   slides from the centre up past the top edge, so its round lower edge sweeps
+   upward and the cut rises in behind it. */
+.reveal-fill {
+  animation: reveal var(--reveal-ms) var(--ease-wipe) var(--reveal-delay) both;
+}
+@keyframes reveal {
+  from { clip-path: circle(71% at 50% 50%); }
+  to   { clip-path: circle(71% at 50% -60%); }
+}
 
 .slide {
   position: absolute;
@@ -101,14 +145,19 @@ button { font-family: inherit; cursor: pointer; }
     opacity .34s ease,
     filter .34s ease;
 }
+/* a clicked slot keeps focus, and the browser's ring would ride the carousel */
+.slide:focus,
+.slide:focus-visible { outline: none; }
+.slide { -webkit-tap-highlight-color: transparent; user-select: none; }
+
 /* the run drives the focus, so a hover only ever nudges the neighbours */
 .slide:not(.is-lit):hover { filter: blur(1px) !important; opacity: .92 !important; }
 
 .stage.is-done .slide {
   transition:
-    transform .62s cubic-bezier(.33, 0, .2, 1),
-    opacity .48s ease,
-    filter .48s ease;
+    transform var(--settle) var(--ease-io),
+    opacity var(--settle) var(--ease-io),
+    filter var(--settle) var(--ease-io);
 }
 
 /* ── the device ─────────────────────────────────────────── */
@@ -158,16 +207,31 @@ button { font-family: inherit; cursor: pointer; }
   /* No motion of its own: the growth already happened on the slot and the bezel,
      and this arrives at exactly their size. Opacity only, so nothing can land
      off-mark if the animation is interrupted. */
-  animation: fadeIn .46s ease both;
+  animation: fadeIn .2s var(--ease-io) both;
 }
-.phone-hero { pointer-events: auto; }
+.phone-hero {
+  pointer-events: auto;
+  /* lifted off the red: drop-shadow follows the frame's own silhouette, buttons
+     and all, and it eases in with the reveal so the phone rises as the cut lands */
+  filter:
+    drop-shadow(0 28px 36px rgba(70, 0, 0, .30))
+    drop-shadow(0 8px 12px rgba(70, 0, 0, .18));
+  animation: lift var(--settle) var(--ease-io) both;
+}
+@keyframes lift {
+  from {
+    filter:
+      drop-shadow(0 0 0 rgba(70, 0, 0, 0))
+      drop-shadow(0 0 0 rgba(70, 0, 0, 0));
+  }
+}
 
 /* which build you're looking at, under the middle phone */
 .caption {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 74px;
+  bottom: 50px;
   z-index: 45;
   text-align: center;
   font-size: 30px;
@@ -192,7 +256,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .closing-label {
   font-size: 34px;
-  font-weight: 400;
+  font-weight: 600;
   letter-spacing: -0.018em;
   color: #ffffff;
 }
